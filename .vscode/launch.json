@@ -1,0 +1,29 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Project1",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${env:TEMP}/Project1_build/output/Debug/Project1.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/Project1",
+            "environment": [],
+            "console": "externalTerminal",
+            "preLaunchTask": "Build Project1"
+        },
+        {
+            "name": "Debug Project1 (Local Build)",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/Project1/x64/bin/Debug/Project1.exe",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/Project1",
+            "environment": [],
+            "console": "externalTerminal",
+            "preLaunchTask": "Build Project1"
+        }
+    ]
+}

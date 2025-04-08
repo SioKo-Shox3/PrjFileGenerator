@@ -1,0 +1,44 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build Project1",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "-S",
+                "${workspaceFolder}/Project1",
+                "-B",
+                "${env:TEMP}/Project1_build",
+                "-DCMAKE_CXX_STANDARD=17",
+                "&&",
+                "cmake",
+                "--build",
+                "${env:TEMP}/Project1_build",
+                "--config",
+                "Debug"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$msCompile"
+            ],
+            "detail": "Build Project1 using CMake"
+        },
+        {
+            "label": "Run Project1",
+            "type": "shell",
+            "command": "${env:TEMP}/Project1_build/bin/Debug/Project1.exe",
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            },
+            "dependsOn": [
+                "Build Project1"
+            ],
+            "detail": "Run Project1 executable"
+        }
+    ]
+}
