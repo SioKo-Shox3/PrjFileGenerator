@@ -1,54 +1,44 @@
-# Windows アプリケーションフレームワーク
+# VS Filter Generator
 
-このプロジェクトは、Windowsデスクトップアプリケーション開発のための軽量フレームワークを提供します。Win32 APIをベースにした抽象化レイヤーを使用して、モダンなC++でWindowsアプリケーションを簡単に開発することができます。
+このプロジェクトはVisual Studioプロジェクトのフィルターファイル（.vcxproj.filters）をディレクトリ構造から自動生成するツールです。プロジェクト内のファイル構造を解析し、適切なフィルター構成を持つフィルターファイルを生成します。
 
 ## 概要
 
-このフレームワークは以下の機能を提供します：
+このツールは以下の機能を提供します：
 
-- アプリケーションライフサイクル管理
-- ウィンドウ作成と管理
-- イベント処理システム
-- リソース管理
+- プロジェクトディレクトリのファイル構造の解析
+- Visual Studio用の.vcxproj.filtersファイルの自動生成
+- 既存のプロジェクトファイル(.vcxproj)の更新
+- 生成前のフィルター構造の確認と編集
 
-## アーキテクチャ
+## 主な特徴
 
-フレームワークは以下の主要コンポーネントで構成されています：
+- シンプルなGUIインターフェース
+- ドラッグ＆ドロップによるプロジェクトディレクトリの選択
+- フィルター構造のツリービュー表示
+- 既存のプロジェクトファイルとの整合性を維持
 
-### IApplication
+## 使用方法
 
-アプリケーションの基本動作を定義するインターフェースです。初期化、実行、シャットダウンなどの基本的なライフサイクル機能を提供します。
+1. アプリケーションを起動します
+2. 「Browse」ボタンをクリックしてVisual Studioプロジェクトが含まれるディレクトリを選択するか、ディレクトリをテキストボックスにドラッグ＆ドロップします
+3. プロジェクト名が自動的に検出され表示されます
+4. 「Generate Filters」ボタンをクリックしてフィルターファイルの生成を開始します
+5. 確認ダイアログでフィルター構造を確認し、OKボタンをクリックして生成を実行します
 
-### WinApplication
+## サポートされるファイルタイプ
 
-`IApplication`インターフェースのWindows実装です。Win32 APIを使用してWindowsアプリケーションを実装します。
+このツールは以下のファイルタイプを認識します：
 
-### IWindow
-
-ウィンドウの基本動作を定義するインターフェースです。
-
-### TWindow
-
-テンプレートベースのウィンドウ実装で、さまざまなウィンドウタイプを簡単に作成できます。
-
-### IWindowContext
-
-ウィンドウコンテキストを提供するインターフェースです。
-
-### Win32WindowContext
-
-Windows環境でのウィンドウコンテキスト実装です。
-
-### WindowRoutines
-
-ウィンドウのメッセージ処理やイベント処理を行うクラスです。
+- C/C++ソースファイル (.cpp, .c)
+- ヘッダーファイル (.h, .hpp)
 
 ## ビルド方法
 
 ### 必要条件
 
 - Windows 10以降
-- Visual Studio 2019以降
+- Visual Studio 2019以降 
 - CMake 3.14以降
 
 ### ビルド手順
@@ -57,7 +47,7 @@ Windows環境でのウィンドウコンテキスト実装です。
 
 ```bash
 git clone <repository-url>
-cd Project1
+cd PrjFileGenerator
 ```
 
 2. CMakeを使用してビルド：
@@ -65,45 +55,20 @@ cd Project1
 ```bash
 mkdir build
 cd build
-cmake ..
+cmake ../Project1
 cmake --build . --config Debug
 ```
 
 または、Visual Studioのタスク「Build Project1」を実行します。
 
-## 使用方法
+## アーキテクチャ
 
-基本的なウィンドウアプリケーションを作成する例：
+このツールは以下の主要コンポーネントで構成されています：
 
-```cpp
-#include "WinApplication.h"
-#include <Windows.h>
-
-int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLine, int nCmdShow)
-{
-    // アプリケーションインスタンスを作成
-    WinApplication app(hInstance, nCmdShow);
-    
-    // 初期化
-    if (!app.Initialize(hInstance, L"サンプルアプリケーション", 800, 600, nCmdShow))
-    {
-        return -1;
-    }
-    
-    // アプリケーションを実行
-    return app.Run();
-}
-```
-
-## ドキュメント
-
-詳細なAPIドキュメントは、Doxygenを使用して生成できます：
-
-```bash
-doxygen Doxyfile
-```
-
-生成されたドキュメントは `docs/html/index.html` から閲覧できます。
+- **FileUtils**: ファイル操作とフィルター構造の構築を担当
+- **WinApplication**: アプリケーションのライフサイクル管理
+- **MainWindowRoutine**: メインウィンドウのUI処理
+- **ConfirmDialogRoutine**: 確認ダイアログの処理
 
 ## ライセンス
 
