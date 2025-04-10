@@ -6,6 +6,9 @@
 #define _UNICODE
 #endif
 
+//==============================================================================
+// Windows API ヘッダー
+//==============================================================================
 #include <windows.h>
 #include <lmcons.h>
 #include <commctrl.h>
@@ -13,23 +16,33 @@
 #include <shlobj.h>
 #include <objbase.h>
 #include <shobjidl.h>
-#include <filesystem>
+
+//==============================================================================
+// C++ 標準ライブラリ
+//==============================================================================
 #include <string>
 #include <vector>
 #include <map>
-#include <fstream>
 #include <set>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <regex>
-#include <objbase.h>
 #include <codecvt>
 #include <locale>
 #include <system_error>
 #include <iomanip>
-#include <sstream>
+
+//==============================================================================
+// プロジェクト固有ヘッダー
+//==============================================================================
 #include "tinyxml2.h"
 #include "../resource/resource.h"
 
+//==============================================================================
+// プラグマディレクティブ
+//==============================================================================
 #pragma comment(lib, "comctl32.lib")
 #pragma comment(lib, "ole32.lib")
 #pragma comment(lib, "shell32.lib")
@@ -37,21 +50,66 @@
 #pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #pragma comment(linker, "/SUBSYSTEM:WINDOWS /ENTRY:wWinMainCRTStartup")
 
+//==============================================================================
+// 定数定義
+//==============================================================================
 #define IDC_TREEVIEW 1001
 #define IDC_OK_BUTTON 1002
 #define IDC_CANCEL_BUTTON 1003
 
 namespace fs = std::filesystem;
 
-std::string wstring_to_utf8(const std::wstring &wstr);
+//==============================================================================
+// 関数プロトタイプ
+//==============================================================================
 
-// FileInfo struct
+/**
+ * @brief ワイド文字列をUTF-8に変換する
+ * @param wstr 変換元のワイド文字列
+ * @return UTF-8形式の文字列
+ */
+std::string WStringToUtf8(const std::wstring &wstr);
+
+//==============================================================================
+// 構造体定義
+//==============================================================================
+
+/**
+ * @brief プロジェクト内のファイル情報を保持する構造体
+ */
 struct FileInfo
 {
-    std::wstring name;
-    std::wstring filter;
+    std::wstring m_name;   ///< ファイル名（相対パス）
+    std::wstring m_filter; ///< フィルターパス
 };
 
+/**
+ * @brief フィルタ階層構造のノード
+ */
+struct FilterNode
+{
+    std::wstring m_name;                ///< ノード名（ファイルまたはディレクトリ名）
+    std::vector<FilterNode> m_children; ///< 子ノードのリスト
+    bool m_bIsFile;                     ///< ファイルかディレクトリかを示すフラグ
+};
+
+//==============================================================================
+// グローバル変数
+//==============================================================================
+HWND g_hWndDirectoryEdit, g_hWndProjectNameEdit, g_hWndGenerateButton, g_hWndStatusText, g_hWndBrowseButton;
+WNDPROC g_oldEditProc;
+HFONT g_hFont;
+HWND g_hTreeView;
+HWND g_hConfirmDialog;
+
+//==============================================================================
+// ユーティリティ関数
+//==============================================================================
+
+/**
+ * @brief 現在のユーザー名を取得する
+ * @return ユーザー名（ワイド文字列）
+ */
 std::wstring GetCurrentUserName()
 {
     wchar_t username[UNLEN + 1];
@@ -63,7 +121,12 @@ std::wstring GetCurrentUserName()
     return L"Unknown";
 }
 
-std::wstring generateGuid()
+/**
+ * @brief GUIDを生成する
+ * @return フォーマット済みのGUID文字列（ブレースなし）
+ * @throw std::runtime_error GUID生成に失敗した場合
+ */
+std::wstring GenerateGuid()
 {
     GUID guid;
     HRESULT hr = CoCreateGuid(&guid);
@@ -87,7 +150,12 @@ std::wstring generateGuid()
     return guidStr.substr(1, guidStr.length() - 2);
 }
 
-std::vector<FileInfo> getProjectFiles(const fs::path &directory)
+/**
+ * @brief プロジェクト内のソースファイルとヘッダーファイルを取得する
+ * @param directory 検索対象のディレクトリパス
+ * @return ファイル情報のベクタ
+ */
+std::vector<FileInfo> GetProjectFiles(const fs::path &directory)
 {
     std::vector<FileInfo> files;
     std::wstring baseDir = directory.wstring();
@@ -123,7 +191,12 @@ std::vector<FileInfo> getProjectFiles(const fs::path &directory)
     return files;
 }
 
-std::wstring xmlEscape(const std::wstring &input)
+/**
+ * @brief XML特殊文字をエスケープする
+ * @param input エスケープ対象の文字列
+ * @return エスケープ済みの文字列
+ */
+std::wstring XmlEscape(const std::wstring &input)
 {
     std::wstring escaped;
     for (wchar_t ch : input)
@@ -156,7 +229,14 @@ std::wstring xmlEscape(const std::wstring &input)
     return escaped;
 }
 
-void generateFiltersFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
+/**
+ * @brief Visual Studio用のフィルターファイルを生成する
+ * @param projectDirectory プロジェクトディレクトリ
+ * @param projectName プロジェクト名
+ * @param files ファイル情報のリスト
+ * @throw std::runtime_error ファイル生成に失敗した場合
+ */
+void GenerateFiltersFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
 {
     fs::path filtersPath = fs::path(projectDirectory) / (std::wstring(projectName) + L".vcxproj.filters");
 
@@ -166,7 +246,7 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
         std::wofstream filtersFile(filtersPath, std::ios::out | std::ios::trunc);
         if (!filtersFile.is_open())
         {
-            throw std::runtime_error("Failed to open filters file: " + wstring_to_utf8(filtersPath.wstring()));
+            throw std::runtime_error("Failed to open filters file: " + WStringToUtf8(filtersPath.wstring()));
         }
 
         filtersFile << L"<?xml version=\"1.0\" encoding=\"utf-8\"?>\n";
@@ -176,7 +256,7 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
         std::map<std::wstring, std::wstring> filterHierarchy;
         for (const auto &file : files)
         {
-            fs::path filePath(file.name);
+            fs::path filePath(file.m_name);
             std::wstring currentPath;
             for (const auto &part : filePath.parent_path())
             {
@@ -204,12 +284,12 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
         filtersFile << L"  <ItemGroup>\n";
         for (const auto &[filter, parentFilter] : filterHierarchy)
         {
-            filtersFile << L"    <Filter Include=\"" << xmlEscape(filter) << L"\">\n";
+            filtersFile << L"    <Filter Include=\"" << XmlEscape(filter) << L"\">\n";
             if (!parentFilter.empty())
             {
-                filtersFile << L"      <Filter>" << xmlEscape(parentFilter) << L"</Filter>\n";
+                filtersFile << L"      <Filter>" << XmlEscape(parentFilter) << L"</Filter>\n";
             }
-            filtersFile << L"      <UniqueIdentifier>{" << generateGuid() << L"}</UniqueIdentifier>\n";
+            filtersFile << L"      <UniqueIdentifier>{" << GenerateGuid() << L"}</UniqueIdentifier>\n";
             filtersFile << L"    </Filter>\n";
         }
         filtersFile << L"  </ItemGroup>\n";
@@ -218,7 +298,7 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
         filtersFile << L"  <ItemGroup>\n";
         for (const auto &file : files)
         {
-            fs::path filePath(file.name);
+            fs::path filePath(file.m_name);
             std::wstring ext = filePath.extension().wstring();
             std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
@@ -236,11 +316,11 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
                 itemType = L"None";
             }
 
-            std::wstring escapedFilePath = xmlEscape(file.name);
+            std::wstring escapedFilePath = XmlEscape(file.m_name);
             filtersFile << L"    <" << itemType << L" Include=\"" << escapedFilePath << L"\">\n";
             if (!filePath.parent_path().empty())
             {
-                filtersFile << L"      <Filter>" << xmlEscape(filePath.parent_path().wstring()) << L"</Filter>\n";
+                filtersFile << L"      <Filter>" << XmlEscape(filePath.parent_path().wstring()) << L"</Filter>\n";
             }
             filtersFile << L"    </" << itemType << L">\n";
         }
@@ -263,7 +343,7 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
     catch (const std::exception &e)
     {
         std::stringstream ss;
-        ss << "Error in generateFiltersFile: " << e.what() << "\n";
+        ss << "Error in GenerateFiltersFile: " << e.what() << "\n";
         ss << "Partial file contents:\n";
         std::wifstream partialFile(filtersPath);
         if (partialFile.is_open())
@@ -271,7 +351,7 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
             std::wstring line;
             for (int i = 0; i < 20 && std::getline(partialFile, line); ++i)
             {
-                ss << wstring_to_utf8(line) << "\n";
+                ss << WStringToUtf8(line) << "\n";
             }
             partialFile.close();
         }
@@ -279,13 +359,11 @@ void generateFiltersFile(const std::wstring &projectDirectory, const std::wstrin
     }
 }
 
-HWND hWndDirectoryEdit, hWndProjectNameEdit, hWndGenerateButton, hWndStatusText, hWndBrowseButton;
-WNDPROC oldEditProc;
-HFONT hFont;
-HWND hTreeView;
-HWND hConfirmDialog;
-
-// Font creation function
+/**
+ * @brief カスタムフォントを作成する
+ * @param size フォントサイズ
+ * @return フォントハンドル
+ */
 HFONT CreateCustomFont(int size = 16)
 {
     // The font name for CreateFontW needs to be an LPCWSTR (wide string)
@@ -297,7 +375,11 @@ HFONT CreateCustomFont(int size = 16)
     );
 }
 
-// Find the project file in the directory and return the project name
+/**
+ * @brief ディレクトリ内のプロジェクトファイルを検索し、プロジェクト名を取得する
+ * @param directory 検索対象ディレクトリ
+ * @return プロジェクト名（見つからない場合は空文字列）
+ */
 std::wstring FindProjectFile(const std::wstring &directory)
 {
     for (const auto &entry : fs::directory_iterator(directory))
@@ -322,14 +404,23 @@ std::wstring FindProjectFile(const std::wstring &directory)
     return L""; // No project file found
 }
 
-// Convert wstring to string
-std::string ws2s(const std::wstring &wstr)
+/**
+ * @brief ワイド文字列をstd::stringに変換する
+ * @param wstr 変換元のワイド文字列
+ * @return 変換後の文字列
+ */
+std::string Ws2s(const std::wstring &wstr)
 {
     std::string str(wstr.begin(), wstr.end());
     return str;
 }
 
-std::string wstring_to_utf8(const std::wstring &wstr)
+/**
+ * @brief ワイド文字列をUTF-8エンコードの文字列に変換する
+ * @param wstr 変換元のワイド文字列
+ * @return UTF-8エンコードの文字列
+ */
+std::string WStringToUtf8(const std::wstring &wstr)
 {
     if (wstr.empty())
         return std::string();
@@ -339,7 +430,14 @@ std::string wstring_to_utf8(const std::wstring &wstr)
     return strTo;
 }
 
-void updateProjectFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
+/**
+ * @brief プロジェクトファイルを更新する
+ * @param projectDirectory プロジェクトディレクトリ
+ * @param projectName プロジェクト名
+ * @param files ファイル情報のリスト
+ * @throw std::runtime_error ファイル操作に失敗した場合
+ */
+void UpdateProjectFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
 {
     fs::path projectPath = fs::path(projectDirectory) / (projectName + L".vcxproj");
     std::wstring projectFileName = projectPath.wstring();
@@ -347,7 +445,7 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
     // Check if the file exists
     if (!fs::exists(projectFileName))
     {
-        throw std::runtime_error("Project file does not exist: " + wstring_to_utf8(projectFileName));
+        throw std::runtime_error("Project file does not exist: " + WStringToUtf8(projectFileName));
     }
 
     // Check file permissions
@@ -359,13 +457,13 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
     }
     if ((status.permissions() & fs::perms::owner_read) == fs::perms::none)
     {
-        throw std::runtime_error("No read permission for project file: " + wstring_to_utf8(projectFileName));
+        throw std::runtime_error("No read permission for project file: " + WStringToUtf8(projectFileName));
     }
 
     tinyxml2::XMLDocument doc;
 
     // Convert the wide string to UTF-8
-    std::string utf8FileName = wstring_to_utf8(projectFileName);
+    std::string utf8FileName = WStringToUtf8(projectFileName);
 
     tinyxml2::XMLError eResult = doc.LoadFile(utf8FileName.c_str());
     if (eResult != tinyxml2::XML_SUCCESS)
@@ -401,7 +499,7 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
     tinyxml2::XMLElement *newItemGroup = nullptr;
     for (const auto &file : files)
     {
-        std::string fileName = ws2s(file.name);
+        std::string fileName = Ws2s(file.m_name);
         if (existingFiles.find(fileName) == existingFiles.end())
         {
             if (!newItemGroup)
@@ -410,7 +508,7 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
                 projectElement->InsertEndChild(newItemGroup);
             }
 
-            std::wstring ext = fs::path(file.name).extension().wstring();
+            std::wstring ext = fs::path(file.m_name).extension().wstring();
             std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
             tinyxml2::XMLElement *newItem = nullptr;
@@ -434,7 +532,7 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
     // Save the file if changes were made
     if (newItemGroup)
     {
-        eResult = doc.SaveFile(ws2s(projectFileName).c_str());
+        eResult = doc.SaveFile(Ws2s(projectFileName).c_str());
         if (eResult != tinyxml2::XML_SUCCESS)
         {
             throw std::runtime_error("Failed to save project file");
@@ -442,34 +540,40 @@ void updateProjectFile(const std::wstring &projectDirectory, const std::wstring 
     }
 }
 
-// Update the project name when the directory path is changed
+/**
+ * @brief プロジェクト名を更新する
+ * @param hwnd ウィンドウハンドル
+ */
 void UpdateProjectName(HWND hwnd)
 {
     wchar_t directoryPath[MAX_PATH];
-    GetWindowTextW(hWndDirectoryEdit, directoryPath, MAX_PATH);
+    GetWindowTextW(g_hWndDirectoryEdit, directoryPath, MAX_PATH);
 
     // Check if the directory exists
     if (!fs::is_directory(directoryPath))
     {
-        SetWindowTextW(hWndProjectNameEdit, L"");
-        SetWindowTextW(hWndStatusText, L"Invalid directory path.");
+        SetWindowTextW(g_hWndProjectNameEdit, L"");
+        SetWindowTextW(g_hWndStatusText, L"Invalid directory path.");
         return;
     }
 
     std::wstring projectName = FindProjectFile(directoryPath);
     if (!projectName.empty())
     {
-        SetWindowTextW(hWndProjectNameEdit, projectName.c_str());
-        SetWindowTextW(hWndStatusText, L""); // Clear status message
+        SetWindowTextW(g_hWndProjectNameEdit, projectName.c_str());
+        SetWindowTextW(g_hWndStatusText, L""); // Clear status message
     }
     else
     {
-        SetWindowTextW(hWndProjectNameEdit, L"");
-        SetWindowTextW(hWndStatusText, L"No .vcxproj file found in the selected directory.");
+        SetWindowTextW(g_hWndProjectNameEdit, L"");
+        SetWindowTextW(g_hWndStatusText, L"No .vcxproj file found in the selected directory.");
     }
 }
 
-// Browse for a folder
+/**
+ * @brief フォルダ選択ダイアログを表示する
+ * @return 選択されたパス（キャンセル時は空文字列）
+ */
 std::wstring BrowseFolder()
 {
     IFileOpenDialog *pFileOpen;
@@ -510,18 +614,16 @@ std::wstring BrowseFolder()
     return selectedPath;
 }
 
-struct FilterNode
-{
-    std::wstring name;
-    std::vector<FilterNode> children;
-    bool isFile; // Flag to indicate if it's a file
-};
-
-FilterNode buildFilterStructure(const std::wstring &directory)
+/**
+ * @brief フィルタ階層構造を構築する
+ * @param directory 対象ディレクトリ
+ * @return ルートノード
+ */
+FilterNode BuildFilterStructure(const std::wstring &directory)
 {
     FilterNode root;
-    root.name = fs::path(directory).filename().wstring();
-    root.isFile = false;
+    root.m_name = fs::path(directory).filename().wstring();
+    root.m_bIsFile = false;
 
     for (const auto &entry : fs::recursive_directory_iterator(directory))
     {
@@ -540,14 +642,14 @@ FilterNode buildFilterStructure(const std::wstring &directory)
             for (size_t i = 0; i < path_parts.size(); ++i)
             {
                 auto &part = path_parts[i];
-                auto it = std::find_if(current->children.begin(), current->children.end(),
+                auto it = std::find_if(current->m_children.begin(), current->m_children.end(),
                                        [&part](const FilterNode &node)
-                                       { return node.name == part; });
+                                       { return node.m_name == part; });
 
-                if (it == current->children.end())
+                if (it == current->m_children.end())
                 {
-                    current->children.emplace_back(FilterNode{part, {}, i == path_parts.size() - 1});
-                    current = &current->children.back();
+                    current->m_children.emplace_back(FilterNode{part, {}, i == path_parts.size() - 1});
+                    current = &current->m_children.back();
                 }
                 else
                 {
@@ -559,6 +661,13 @@ FilterNode buildFilterStructure(const std::wstring &directory)
     return root;
 }
 
+/**
+ * @brief ツリービューにアイテムを追加する
+ * @param hTreeView ツリービューのハンドル
+ * @param hParent 親アイテムのハンドル
+ * @param text 追加するテキスト
+ * @return 追加されたアイテムのハンドル
+ */
 HTREEITEM AddItemToTree(HWND hTreeView, HTREEITEM hParent, const std::wstring &text)
 {
     TVINSERTSTRUCT tvInsert = {0};
@@ -569,15 +678,21 @@ HTREEITEM AddItemToTree(HWND hTreeView, HTREEITEM hParent, const std::wstring &t
     return TreeView_InsertItem(hTreeView, &tvInsert);
 }
 
+/**
+ * @brief ツリービューにフィルタ構造を反映する
+ * @param hTreeView ツリービューのハンドル
+ * @param hParent 親アイテムのハンドル
+ * @param node 表示するフィルタノード
+ */
 void PopulateTreeView(HWND hTreeView, HTREEITEM hParent, const FilterNode &node)
 {
-    HTREEITEM hItem = AddItemToTree(hTreeView, hParent, node.name.c_str());
-    for (const auto &child : node.children)
+    HTREEITEM hItem = AddItemToTree(hTreeView, hParent, node.m_name.c_str());
+    for (const auto &child : node.m_children)
     {
-        if (child.isFile)
+        if (child.m_bIsFile)
         {
             // If it's a file, just add it
-            AddItemToTree(hTreeView, hItem, child.name.c_str());
+            AddItemToTree(hTreeView, hItem, child.m_name.c_str());
         }
         else
         {
@@ -587,6 +702,14 @@ void PopulateTreeView(HWND hTreeView, HTREEITEM hParent, const FilterNode &node)
     }
 }
 
+/**
+ * @brief 確認ダイアログのウィンドウプロシージャ
+ * @param hwnd ウィンドウハンドル
+ * @param uMsg メッセージID
+ * @param wParam メッセージの追加情報
+ * @param lParam メッセージの追加情報
+ * @return 処理結果
+ */
 INT_PTR CALLBACK ConfirmDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -595,20 +718,20 @@ INT_PTR CALLBACK ConfirmDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
     {
         FilterNode *root = reinterpret_cast<FilterNode *>(lParam);
 
-        hTreeView = CreateWindowExW(0, WC_TREEVIEW, L"",
-                                    WS_VISIBLE | WS_CHILD | WS_BORDER | TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS,
-                                    10, 10, 380, 300, hwnd, (HMENU)IDC_TREEVIEW, GetModuleHandle(NULL), NULL);
-        SendMessage(hTreeView, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hTreeView = CreateWindowExW(0, WC_TREEVIEW, L"",
+                                      WS_VISIBLE | WS_CHILD | WS_BORDER | TVS_HASLINES | TVS_LINESATROOT | TVS_HASBUTTONS,
+                                      10, 10, 380, 300, hwnd, (HMENU)IDC_TREEVIEW, GetModuleHandle(NULL), NULL);
+        SendMessage(g_hTreeView, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
-        PopulateTreeView(hTreeView, TVI_ROOT, *root);
+        PopulateTreeView(g_hTreeView, TVI_ROOT, *root);
 
         HWND hOkButton = CreateWindowW(L"BUTTON", L"OK", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
                                        200, 320, 80, 30, hwnd, (HMENU)IDOK, GetModuleHandle(NULL), NULL);
-        SendMessage(hOkButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(hOkButton, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         HWND hCancelButton = CreateWindowW(L"BUTTON", L"Cancel", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
                                            290, 320, 80, 30, hwnd, (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL);
-        SendMessage(hCancelButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(hCancelButton, WM_SETFONT, (WPARAM)g_hFont, TRUE);
     }
         return TRUE;
 
@@ -630,7 +753,14 @@ INT_PTR CALLBACK ConfirmDialogProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
     return FALSE;
 }
 
-// Subclassed Edit control WNDPROC
+/**
+ * @brief エディットコントロールのサブクラス化プロシージャ
+ * @param hwnd ウィンドウハンドル
+ * @param uMsg メッセージID
+ * @param wParam メッセージの追加情報
+ * @param lParam メッセージの追加情報
+ * @return 処理結果
+ */
 LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -650,7 +780,7 @@ LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
             }
             else
             {
-                SetWindowTextW(hWndStatusText, L"Please drop a directory, not a file.");
+                SetWindowTextW(g_hWndStatusText, L"Please drop a directory, not a file.");
             }
         }
         DragFinish(hDrop);
@@ -661,10 +791,17 @@ LRESULT CALLBACK EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lP
         UpdateProjectName(GetParent(hwnd));
         break;
     }
-    return CallWindowProc(oldEditProc, hwnd, uMsg, wParam, lParam);
+    return CallWindowProc(g_oldEditProc, hwnd, uMsg, wParam, lParam);
 }
 
-// Main window procedure
+/**
+ * @brief メインウィンドウのウィンドウプロシージャ
+ * @param hwnd ウィンドウハンドル
+ * @param uMsg メッセージID
+ * @param wParam メッセージの追加情報
+ * @param lParam メッセージの追加情報
+ * @return 処理結果
+ */
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
@@ -672,46 +809,46 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_CREATE:
     {
         // Create custom font
-        hFont = CreateCustomFont();
+        g_hFont = CreateCustomFont();
 
         // Project directory label
         HWND hWndStatic = CreateWindowW(L"STATIC", L"Project Directory:", WS_VISIBLE | WS_CHILD,
                                         10, 10, 150, 20, hwnd, NULL, NULL, NULL);
-        SendMessage(hWndStatic, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(hWndStatic, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
-        hWndDirectoryEdit = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
-                                          10, 30, 250, 20, hwnd, NULL, NULL, NULL);
-        SendMessage(hWndDirectoryEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hWndDirectoryEdit = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL,
+                                            10, 30, 250, 20, hwnd, NULL, NULL, NULL);
+        SendMessage(g_hWndDirectoryEdit, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         // Browse button
-        hWndBrowseButton = CreateWindowW(L"BUTTON", L"Browse", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                         270, 30, 60, 20, hwnd, (HMENU)2, NULL, NULL);
-        SendMessage(hWndBrowseButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hWndBrowseButton = CreateWindowW(L"BUTTON", L"Browse", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+                                           270, 30, 60, 20, hwnd, (HMENU)2, NULL, NULL);
+        SendMessage(g_hWndBrowseButton, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         // Project name label
         HWND hWndStatic2 = CreateWindowW(L"STATIC", L"Project Name:", WS_VISIBLE | WS_CHILD,
                                          10, 60, 150, 20, hwnd, NULL, NULL, NULL);
-        SendMessage(hWndStatic2, WM_SETFONT, (WPARAM)hFont, TRUE);
+        SendMessage(hWndStatic2, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
-        hWndProjectNameEdit = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL | ES_READONLY,
-                                            10, 80, 300, 20, hwnd, NULL, NULL, NULL);
-        SendMessage(hWndProjectNameEdit, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hWndProjectNameEdit = CreateWindowW(L"EDIT", L"", WS_VISIBLE | WS_CHILD | WS_BORDER | ES_AUTOHSCROLL | ES_READONLY,
+                                              10, 80, 300, 20, hwnd, NULL, NULL, NULL);
+        SendMessage(g_hWndProjectNameEdit, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         // Generate button
-        hWndGenerateButton = CreateWindowW(L"BUTTON", L"Generate Filters", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
-                                           10, 110, 150, 30, hwnd, (HMENU)1, NULL, NULL);
-        SendMessage(hWndGenerateButton, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hWndGenerateButton = CreateWindowW(L"BUTTON", L"Generate Filters", WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+                                             10, 110, 150, 30, hwnd, (HMENU)1, NULL, NULL);
+        SendMessage(g_hWndGenerateButton, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         // Status text
-        hWndStatusText = CreateWindowW(L"STATIC", L"", WS_VISIBLE | WS_CHILD,
-                                       10, 150, 300, 20, hwnd, NULL, NULL, NULL);
-        SendMessage(hWndStatusText, WM_SETFONT, (WPARAM)hFont, TRUE);
+        g_hWndStatusText = CreateWindowW(L"STATIC", L"", WS_VISIBLE | WS_CHILD,
+                                         10, 150, 300, 20, hwnd, NULL, NULL, NULL);
+        SendMessage(g_hWndStatusText, WM_SETFONT, (WPARAM)g_hFont, TRUE);
 
         // Enable drag-and-drop for the directory edit control
-        DragAcceptFiles(hWndDirectoryEdit, TRUE);
+        DragAcceptFiles(g_hWndDirectoryEdit, TRUE);
 
         // Subclass the Edit control
-        oldEditProc = (WNDPROC)SetWindowLongPtr(hWndDirectoryEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
+        g_oldEditProc = (WNDPROC)SetWindowLongPtr(g_hWndDirectoryEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
 
         break;
     }
@@ -719,22 +856,22 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         if (LOWORD(wParam) == 1)
         { // Generate Filters button clicked
             wchar_t directoryPath[MAX_PATH], projectName[MAX_PATH];
-            GetWindowTextW(hWndDirectoryEdit, directoryPath, MAX_PATH);
-            GetWindowTextW(hWndProjectNameEdit, projectName, MAX_PATH);
+            GetWindowTextW(g_hWndDirectoryEdit, directoryPath, MAX_PATH);
+            GetWindowTextW(g_hWndProjectNameEdit, projectName, MAX_PATH);
 
             if (!fs::is_directory(directoryPath))
             {
-                SetWindowTextW(hWndStatusText, L"Invalid directory path. Please select a valid directory.");
+                SetWindowTextW(g_hWndStatusText, L"Invalid directory path. Please select a valid directory.");
                 return 0;
             }
 
             if (wcslen(projectName) == 0)
             {
-                SetWindowTextW(hWndStatusText, L"Project name is empty. Please select a valid directory with a .vcxproj file.");
+                SetWindowTextW(g_hWndStatusText, L"Project name is empty. Please select a valid directory with a .vcxproj file.");
                 return 0;
             }
 
-            FilterNode root = buildFilterStructure(directoryPath);
+            FilterNode root = BuildFilterStructure(directoryPath);
 
             // Show confirmation dialog
             INT_PTR result = DialogBoxParam(
@@ -746,12 +883,12 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (result == IDOK)
             {
-                auto files = getProjectFiles(directoryPath);
+                auto files = GetProjectFiles(directoryPath);
                 try
                 {
-                    generateFiltersFile(directoryPath, projectName, files);
-                    updateProjectFile(directoryPath, projectName, files);
-                    SetWindowTextW(hWndStatusText, L"Filters generated and project file updated successfully.");
+                    GenerateFiltersFile(directoryPath, projectName, files);
+                    UpdateProjectFile(directoryPath, projectName, files);
+                    SetWindowTextW(g_hWndStatusText, L"Filters generated and project file updated successfully.");
                 }
                 catch (const std::exception &e)
                 {
@@ -774,7 +911,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                                 std::wstring line;
                                 while (std::getline(readFile, line))
                                 {
-                                    ss << wstring_to_utf8(line) << "\n";
+                                    ss << WStringToUtf8(line) << "\n";
                                 }
                                 readFile.close();
                             }
@@ -793,11 +930,11 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                         ss << "Filters file does not exist.\n";
                     }
 
-                    ss << "Project Directory: " << wstring_to_utf8(directoryPath) << "\n"
-                       << "Project Name: " << wstring_to_utf8(projectName) << "\n"
-                       << "Current Directory: " << wstring_to_utf8(fs::current_path().wstring()) << "\n"
+                    ss << "Project Directory: " << WStringToUtf8(directoryPath) << "\n"
+                       << "Project Name: " << WStringToUtf8(projectName) << "\n"
+                       << "Current Directory: " << WStringToUtf8(fs::current_path().wstring()) << "\n"
                        << "Free Disk Space: " << fs::space(directoryPath).available / (1024 * 1024) << " MB\n"
-                       << "User Name: " << wstring_to_utf8(GetCurrentUserName()) << "\n"
+                       << "User Name: " << WStringToUtf8(GetCurrentUserName()) << "\n"
                        << "Process ID: " << GetCurrentProcessId();
 
                     std::string errorMsg = ss.str();
@@ -813,7 +950,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                     }
 
                     std::wstring wideErrorMsg = std::wstring(errorMsg.begin(), errorMsg.end());
-                    SetWindowTextW(hWndStatusText, wideErrorMsg.c_str());
+                    SetWindowTextW(g_hWndStatusText, wideErrorMsg.c_str());
 
                     // Show error message box
                     MessageBoxA(hwnd, errorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
@@ -821,7 +958,7 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             }
             else
             {
-                SetWindowTextW(hWndStatusText, L"Filter generation cancelled.");
+                SetWindowTextW(g_hWndStatusText, L"Filter generation cancelled.");
             }
         }
         else if (LOWORD(wParam) == 2)
@@ -829,19 +966,27 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             std::wstring selectedPath = BrowseFolder();
             if (!selectedPath.empty())
             {
-                SetWindowTextW(hWndDirectoryEdit, selectedPath.c_str());
+                SetWindowTextW(g_hWndDirectoryEdit, selectedPath.c_str());
                 UpdateProjectName(hwnd);
             }
         }
         break;
     case WM_DESTROY:
-        DeleteObject(hFont); // Clean up font resource
+        DeleteObject(g_hFont); // Clean up font resource
         PostQuitMessage(0);
         return 0;
     }
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
+/**
+ * @brief アプリケーションのエントリーポイント
+ * @param hInstance 現在のインスタンスハンドル
+ * @param hPrevInstance 常にNULL（過去の互換性のため）
+ * @param pCmdLine コマンドライン引数
+ * @param nCmdShow ウィンドウの表示方法
+ * @return プログラムの終了コード
+ */
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
     // 日本語文字コードサポートを設定
@@ -893,7 +1038,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     HDC hdc = GetDC(hwnd);
     int dpi = GetDeviceCaps(hdc, LOGPIXELSY);
     ReleaseDC(hwnd, hdc);
-    hFont = CreateCustomFont(-MulDiv(11, dpi, 72)); // Create 11-point font
+    g_hFont = CreateCustomFont(-MulDiv(11, dpi, 72)); // Create 11-point font
 
     ShowWindow(hwnd, nCmdShow);
 
