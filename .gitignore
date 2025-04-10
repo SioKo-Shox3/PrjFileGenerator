@@ -1,0 +1,116 @@
+# C++ 関連
+# コンパイル済みオブジェクト
+*.o
+*.obj
+*.slo
+*.lo
+*.ko
+*.ilk
+*.map
+*.exp
+
+# プリコンパイル済みヘッダ
+*.gch
+*.pch
+
+# コンパイル済みダイナミックリンクライブラリ
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# コンパイル済みスタティックライブラリ
+*.lai
+*.la
+*.a
+*.lib
+
+# 実行可能ファイル
+*.exe
+*.out
+*.app
+*.elf
+*.bin
+
+# デバッグファイル
+*.dSYM/
+*.su
+*.pdb
+*.idb
+*.ipdb
+
+# Visual Studio 関連
+.vs/
+*.suo
+*.user
+*.ncb
+*.aps
+*.pch
+*.sbr
+*.vspscc
+*_i.c
+*_p.c
+*.tlb
+*.tlh
+*.bak
+*.cache
+*.ilk
+*.log
+*.tlog
+*.lastbuildstate
+*.unsuccessfulbuild
+*.idb
+*.iobj
+*.ipdb
+*.ipch
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+ipch/
+[Dd]ebug*/
+[Rr]elease*/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+
+# CMake 関連
+CMakeFiles/
+CMakeCache.txt
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+build/
+*.cmake
+!CMakeLists.txt
+
+# 一時ビルドディレクトリ（環境変数TEMPなど）
+/temp/
+/tmp/
+
+# 特定のIDE関連
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.swp
+*~
+
+# このプロジェクト特有の設定
+# プロジェクト特有のファイルやディレクトリを除外
+# インストール済みのバイナリを含むディレクトリは除外しない
+!/Project1/x64/bin/Debug/
+!/Project1/x64/bin/Release/
+
+# システム関連
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
