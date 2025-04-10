@@ -1,15 +1,35 @@
 #include "Win32WindowContext.h"
 
+/**
+ * @brief コンストラクタ
+ *
+ * インスタンスハンドルを初期化します
+ *
+ * @param hInstance アプリケーションインスタンスハンドル
+ */
 Win32WindowContext::Win32WindowContext(HINSTANCE hInstance)
     : m_hInstance(hInstance)
 {
 }
 
+/**
+ * @brief デストラクタ
+ *
+ * メッセージハンドラの登録を解除します
+ */
 Win32WindowContext::~Win32WindowContext()
 {
     m_messageHandlers.clear();
 }
 
+/**
+ * @brief ウィンドウクラスの登録
+ *
+ * Win32 APIを使用してウィンドウクラスを登録します
+ *
+ * @param className 登録するウィンドウクラス名
+ * @return 登録に成功した場合はtrue、失敗した場合はfalse
+ */
 bool Win32WindowContext::RegisterWindowClass(const std::wstring &className)
 {
     WNDCLASSW wc = {0};
@@ -22,6 +42,19 @@ bool Win32WindowContext::RegisterWindowClass(const std::wstring &className)
     return (RegisterClassW(&wc) != 0);
 }
 
+/**
+ * @brief ウィンドウの作成
+ *
+ * Win32 APIを使用してウィンドウを作成し、メッセージハンドラを登録します
+ *
+ * @param className ウィンドウクラス名
+ * @param title ウィンドウのタイトル
+ * @param width ウィンドウの幅
+ * @param height ウィンドウの高さ
+ * @param parentHandle 親ウィンドウのハンドル（子ウィンドウの場合）
+ * @param messageHandler ウィンドウメッセージを処理するハンドラ関数
+ * @return 作成されたウィンドウのハンドル、失敗した場合はNULL
+ */
 HWND Win32WindowContext::CreateWindowInstance(
     const std::wstring &className,
     const std::wstring &title,
@@ -60,6 +93,13 @@ HWND Win32WindowContext::CreateWindowInstance(
     return hwnd;
 }
 
+/**
+ * @brief ウィンドウの破棄
+ *
+ * ウィンドウを破棄し、関連するメッセージハンドラの登録を解除します
+ *
+ * @param hwnd 破棄するウィンドウのハンドル
+ */
 void Win32WindowContext::DestroyWindowInstance(HWND hwnd)
 {
     if (hwnd)
@@ -69,6 +109,14 @@ void Win32WindowContext::DestroyWindowInstance(HWND hwnd)
     }
 }
 
+/**
+ * @brief ウィンドウの表示
+ *
+ * 指定されたウィンドウを表示し、更新します
+ *
+ * @param hwnd 表示するウィンドウのハンドル
+ * @param showCommand 表示コマンド（例：SW_SHOW, SW_HIDE など）
+ */
 void Win32WindowContext::ShowWindow(HWND hwnd, int showCommand)
 {
     if (hwnd)
@@ -78,6 +126,13 @@ void Win32WindowContext::ShowWindow(HWND hwnd, int showCommand)
     }
 }
 
+/**
+ * @brief メッセージループの実行
+ *
+ * Windowsメッセージループを実行し、アプリケーションの終了まで処理を続けます
+ *
+ * @return アプリケーションの終了コード
+ */
 int Win32WindowContext::RunMessageLoop()
 {
     MSG msg = {};
@@ -91,6 +146,18 @@ int Win32WindowContext::RunMessageLoop()
     return (int)msg.wParam;
 }
 
+/**
+ * @brief 静的ウィンドウプロシージャ
+ *
+ * ウィンドウメッセージを処理する静的関数です。
+ * ウィンドウコンテキストを取得し、適切なメッセージハンドラを呼び出します。
+ *
+ * @param hwnd メッセージを受け取るウィンドウのハンドル
+ * @param msg メッセージの種類
+ * @param wParam メッセージの追加情報（メッセージによって異なる）
+ * @param lParam メッセージの追加情報（メッセージによって異なる）
+ * @return メッセージ処理の結果
+ */
 LRESULT CALLBACK Win32WindowContext::StaticWindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     // メッセージがWM_NCREATEの場合、ウィンドウコンテキストを取得して設定

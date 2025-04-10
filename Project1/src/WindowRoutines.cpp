@@ -37,6 +37,11 @@ static MainWindowRoutine *g_pMainWindowRoutine = nullptr;
 // MainWindowRoutine の実装
 //==============================================================================
 
+/**
+ * @brief コンストラクタ
+ *
+ * メンバ変数を初期化し、グローバルインスタンスポインタを設定します
+ */
 MainWindowRoutine::MainWindowRoutine()
     : m_hWndDirectoryEdit(NULL),
       m_hWndProjectNameEdit(NULL),
@@ -49,6 +54,11 @@ MainWindowRoutine::MainWindowRoutine()
     g_pMainWindowRoutine = this;
 }
 
+/**
+ * @brief デストラクタ
+ *
+ * フォントリソースを解放し、グローバルインスタンスポインタをリセットします
+ */
 MainWindowRoutine::~MainWindowRoutine()
 {
     if (m_hFont != NULL)
@@ -58,6 +68,13 @@ MainWindowRoutine::~MainWindowRoutine()
     g_pMainWindowRoutine = nullptr;
 }
 
+/**
+ * @brief ウィンドウ作成時の処理
+ *
+ * フォントを作成し、UIコントロールを初期化します
+ *
+ * @param window 作成されるウィンドウオブジェクト
+ */
 void MainWindowRoutine::OnCreate(IWindow *window)
 {
     // フォント作成
@@ -75,6 +92,13 @@ void MainWindowRoutine::OnCreate(IWindow *window)
     CreateControls(window->GetHandle());
 }
 
+/**
+ * @brief ウィンドウ破棄時の処理
+ *
+ * フォントなどのリソースを解放します
+ *
+ * @param window 破棄されるウィンドウオブジェクト
+ */
 void MainWindowRoutine::OnDestroy(IWindow *window)
 {
     // リソースのクリーンアップ
@@ -85,11 +109,30 @@ void MainWindowRoutine::OnDestroy(IWindow *window)
     }
 }
 
+/**
+ * @brief 定期的な更新処理
+ *
+ * フレームごとの更新処理を行います
+ *
+ * @param window 更新するウィンドウオブジェクト
+ * @param deltaTime 前回の更新からの経過時間（秒）
+ */
 void MainWindowRoutine::OnUpdate(IWindow *window, float deltaTime)
 {
     // 定期的な更新処理が必要な場合はここに実装
 }
 
+/**
+ * @brief ウィンドウメッセージ処理
+ *
+ * ボタンクリックなどのウィンドウメッセージを処理します
+ *
+ * @param window ウィンドウオブジェクト
+ * @param msg メッセージID
+ * @param wParam 追加のメッセージ情報
+ * @param lParam 追加のメッセージ情報
+ * @return メッセージ処理結果
+ */
 LRESULT MainWindowRoutine::OnMessage(IWindow *window, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -111,6 +154,13 @@ LRESULT MainWindowRoutine::OnMessage(IWindow *window, UINT msg, WPARAM wParam, L
     return DefWindowProc(window->GetHandle(), msg, wParam, lParam);
 }
 
+/**
+ * @brief UIコントロールの作成
+ *
+ * ウィンドウ内の各UIコントロール（ラベル、テキストボックス、ボタンなど）を作成します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void MainWindowRoutine::CreateControls(HWND hwnd)
 {
     // Project directory label
@@ -155,6 +205,13 @@ void MainWindowRoutine::CreateControls(HWND hwnd)
     m_oldEditProc = (WNDPROC)SetWindowLongPtr(m_hWndDirectoryEdit, GWLP_WNDPROC, (LONG_PTR)EditSubclassProc);
 }
 
+/**
+ * @brief Browseボタンのクリックイベント処理
+ *
+ * フォルダ選択ダイアログを表示し、選択されたパスをテキストボックスに設定します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void MainWindowRoutine::OnBrowseButtonClick(HWND hwnd)
 {
     std::wstring selectedPath = BrowseFolder();
@@ -165,6 +222,13 @@ void MainWindowRoutine::OnBrowseButtonClick(HWND hwnd)
     }
 }
 
+/**
+ * @brief Generate Filtersボタンのクリックイベント処理
+ *
+ * プロジェクトファイルとフィルターファイルの生成処理を実行します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void MainWindowRoutine::OnGenerateButtonClick(HWND hwnd)
 {
     wchar_t directoryPath[MAX_PATH], projectName[MAX_PATH];
@@ -184,53 +248,90 @@ void MainWindowRoutine::OnGenerateButtonClick(HWND hwnd)
         return;
     }
 
-    // フィルター構造を構築
-    FileUtils::FilterNode root = FileUtils::BuildFilterStructure(directoryPath);
-
-    // 確認ダイアログを表示
-    std::function<void()> onConfirm = [this, hwnd, directoryPath, projectName]()
+    try
     {
-        try
-        {
-            std::vector<FileUtils::FileInfo> files = FileUtils::GetProjectFiles(directoryPath);
-            FileUtils::GenerateFiltersFile(directoryPath, projectName, files);
-            FileUtils::UpdateProjectFile(directoryPath, projectName, files);
-            SetWindowTextW(m_hWndStatusText, L"Filters generated and project file updated successfully.");
-        }
-        catch (const std::exception &e)
-        {
-            std::string errorMsg = "Error: " + std::string(e.what());
-            std::wstring wideErrorMsg = std::wstring(errorMsg.begin(), errorMsg.end());
-            SetWindowTextW(m_hWndStatusText, wideErrorMsg.c_str());
+        // フィルター構造を構築
+        FileUtils::FilterNode root = FileUtils::BuildFilterStructure(directoryPath);
 
-            // エラーメッセージボックスを表示
+        // 確認ダイアログを表示するコールバック関数
+        std::function<void()> onConfirm = [this, hwnd, directoryPath, projectName]()
+        {
+            try
+            {
+                std::vector<FileUtils::FileInfo> files = FileUtils::GetProjectFiles(directoryPath);
+                FileUtils::GenerateFiltersFile(directoryPath, projectName, files);
+                FileUtils::UpdateProjectFile(directoryPath, projectName, files);
+                SetWindowTextW(m_hWndStatusText, L"Filters generated and project file updated successfully.");
+            }
+            catch (const std::exception &e)
+            {
+                std::string errorMsg = "Error: " + std::string(e.what());
+                std::wstring wideErrorMsg = std::wstring(errorMsg.begin(), errorMsg.end());
+                SetWindowTextW(m_hWndStatusText, wideErrorMsg.c_str());
+
+                // エラーメッセージボックスを表示
+                MessageBoxA(hwnd, errorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
+            }
+        };
+
+        std::function<void()> onCancel = [this]()
+        {
+            SetWindowTextW(m_hWndStatusText, L"Filter generation cancelled.");
+        };
+
+        // 確認ダイアログ用に新しいウィンドウを作成
+        HWND hDlg = CreateDialogParam(
+            GetModuleHandle(NULL),
+            MAKEINTRESOURCE(IDD_CONFIRM_DIALOG),
+            hwnd,
+            NULL, // ダイアログプロシージャはウィンドウルーチンで処理
+            0);
+
+        if (hDlg)
+        {
+            try
+            {
+                // コンストラクタに直接渡す代わりに一度変数に格納
+                std::function<void()> confirmCallback = onConfirm;
+                std::function<void()> cancelCallback = onCancel;
+                ConfirmDialogRoutine dialogRoutine(root, confirmCallback, cancelCallback);
+                dialogRoutine.OnCreate(nullptr); // ウィンドウ作成処理
+            }
+            catch (const std::exception &e)
+            {
+                std::string errorMsg = "Error initializing dialog: " + std::string(e.what());
+                MessageBoxA(hwnd, errorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
+                SetWindowTextW(m_hWndStatusText, L"Failed to create confirmation dialog.");
+                DestroyWindow(hDlg);
+            }
+        }
+        else
+        {
+            // ダイアログの作成に失敗した場合
+            DWORD error = GetLastError();
+            std::string errorMsg = "Failed to create dialog. Error code: " + std::to_string(error);
             MessageBoxA(hwnd, errorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
+            SetWindowTextW(m_hWndStatusText, L"Failed to create confirmation dialog.");
         }
-    };
-
-    std::function<void()> onCancel = [this]()
+    }
+    catch (const std::exception &e)
     {
-        SetWindowTextW(m_hWndStatusText, L"Filter generation cancelled.");
-    };
+        std::string errorMsg = "Error: " + std::string(e.what());
+        std::wstring wideErrorMsg = std::wstring(errorMsg.begin(), errorMsg.end());
+        SetWindowTextW(m_hWndStatusText, wideErrorMsg.c_str());
 
-    // 確認ダイアログ用に新しいウィンドウを作成
-    HWND hDlg = CreateDialogParam(
-        GetModuleHandle(NULL),
-        MAKEINTRESOURCE(IDD_CONFIRM_DIALOG),
-        hwnd,
-        NULL, // ダイアログプロシージャはウィンドウルーチンで処理
-        0);
-
-    if (hDlg)
-    {
-        // コンストラクタに直接渡す代わりに一度変数に格納
-        std::function<void()> confirmCallback = onConfirm;
-        std::function<void()> cancelCallback = onCancel;
-        ConfirmDialogRoutine dialogRoutine(root, confirmCallback, cancelCallback);
-        dialogRoutine.OnCreate(nullptr); // ウィンドウ作成処理
+        // エラーメッセージボックスを表示
+        MessageBoxA(hwnd, errorMsg.c_str(), "Error", MB_OK | MB_ICONERROR);
     }
 }
 
+/**
+ * @brief プロジェクト名の更新
+ *
+ * 選択されたディレクトリ内の.vcxprojファイルからプロジェクト名を取得し表示します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void MainWindowRoutine::UpdateProjectName(HWND hwnd)
 {
     wchar_t directoryPath[MAX_PATH];
@@ -257,46 +358,113 @@ void MainWindowRoutine::UpdateProjectName(HWND hwnd)
     }
 }
 
+/**
+ * @brief フォルダ選択ダイアログの表示
+ *
+ * Common Item Dialogを使用してフォルダ選択ダイアログを表示します
+ *
+ * @return 選択されたフォルダのパス、キャンセルされた場合は空文字列
+ */
 std::wstring MainWindowRoutine::BrowseFolder()
 {
-    IFileOpenDialog *pFileOpen;
+    IFileOpenDialog *pFileOpen = nullptr;
     std::wstring selectedPath;
 
-    // FileOpenDialogオブジェクトの作成
-    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
-                                  IID_IFileOpenDialog, reinterpret_cast<void **>(&pFileOpen));
-
-    if (SUCCEEDED(hr))
+    try
     {
+        // FileOpenDialogオブジェクトの作成
+        HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+                                      IID_IFileOpenDialog, reinterpret_cast<void **>(&pFileOpen));
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to create FileOpenDialog instance");
+        }
+
         // オプション設定
         DWORD dwOptions;
-        pFileOpen->GetOptions(&dwOptions);
-        pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS);
+        hr = pFileOpen->GetOptions(&dwOptions);
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to get FileOpenDialog options");
+        }
+
+        hr = pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS);
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to set folder picker option");
+        }
 
         // ダイアログ表示
         hr = pFileOpen->Show(NULL);
-
-        if (SUCCEEDED(hr))
+        if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
         {
-            IShellItem *pItem;
-            hr = pFileOpen->GetResult(&pItem);
-            if (SUCCEEDED(hr))
-            {
-                PWSTR pszFilePath;
-                hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
-                if (SUCCEEDED(hr))
-                {
-                    selectedPath = pszFilePath;
-                    CoTaskMemFree(pszFilePath);
-                }
-                pItem->Release();
-            }
+            // ユーザーがキャンセルした場合は正常な動作
+            return selectedPath;
         }
+        else if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to show folder picker dialog");
+        }
+
+        // 結果の取得
+        IShellItem *pItem = nullptr;
+        hr = pFileOpen->GetResult(&pItem);
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to get folder picker result");
+        }
+
+        // パスの取得
+        PWSTR pszFilePath = nullptr;
+        hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+        if (FAILED(hr))
+        {
+            pItem->Release();
+            throw std::runtime_error("Failed to get file path from shell item");
+        }
+
+        // 取得したパスをstd::wstringに変換
+        selectedPath = pszFilePath;
+
+        // リソースの解放
+        CoTaskMemFree(pszFilePath);
+        pItem->Release();
+    }
+    catch (const std::exception &e)
+    {
+        // エラーメッセージをログに記録する（必要に応じて）
+        OutputDebugStringA(e.what());
+
+        // 親ウィンドウのステータステキストに表示
+        if (m_hWndStatusText)
+        {
+            std::string errorMsg = e.what();
+            std::wstring wideErrorMsg(errorMsg.begin(), errorMsg.end());
+            SetWindowTextW(m_hWndStatusText, wideErrorMsg.c_str());
+        }
+    }
+
+    // FileOpenDialogインスタンスの解放
+    if (pFileOpen)
+    {
         pFileOpen->Release();
     }
+
     return selectedPath;
 }
 
+/**
+ * @brief エディットコントロールのサブクラスプロシージャ
+ *
+ * エディットコントロールのメッセージを処理するサブクラス化されたウィンドウプロシージャです。
+ * 特にドラッグ＆ドロップ処理を実装しています。
+ *
+ * @param hwnd エディットコントロールのハンドル
+ * @param uMsg メッセージID
+ * @param wParam 追加のメッセージ情報
+ * @param lParam 追加のメッセージ情報
+ * @return メッセージ処理結果
+ */
 LRESULT CALLBACK MainWindowRoutine::EditSubclassProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     if (!g_pMainWindowRoutine)
@@ -337,6 +505,15 @@ LRESULT CALLBACK MainWindowRoutine::EditSubclassProc(HWND hwnd, UINT uMsg, WPARA
 // ConfirmDialogRoutine の実装
 //==============================================================================
 
+/**
+ * @brief コンストラクタ
+ *
+ * 確認ダイアログの初期設定を行います
+ *
+ * @param root フィルター構造のルートノード
+ * @param onConfirm OKボタン押下時のコールバック
+ * @param onCancel キャンセル時のコールバック
+ */
 ConfirmDialogRoutine::ConfirmDialogRoutine(
     const FileUtils::FilterNode &root,
     std::function<void()> onConfirm,
@@ -346,6 +523,11 @@ ConfirmDialogRoutine::ConfirmDialogRoutine(
 {
 }
 
+/**
+ * @brief デストラクタ
+ *
+ * フォントリソースを解放します
+ */
 ConfirmDialogRoutine::~ConfirmDialogRoutine()
 {
     if (m_hFont != NULL)
@@ -354,6 +536,13 @@ ConfirmDialogRoutine::~ConfirmDialogRoutine()
     }
 }
 
+/**
+ * @brief ダイアログ作成時の処理
+ *
+ * フォントを作成し、ツリービューとボタンを初期化します
+ *
+ * @param window ウィンドウオブジェクト
+ */
 void ConfirmDialogRoutine::OnCreate(IWindow *window)
 {
     if (window)
@@ -373,6 +562,13 @@ void ConfirmDialogRoutine::OnCreate(IWindow *window)
     }
 }
 
+/**
+ * @brief ダイアログ破棄時の処理
+ *
+ * フォントなどのリソースを解放します
+ *
+ * @param window 破棄されるウィンドウオブジェクト
+ */
 void ConfirmDialogRoutine::OnDestroy(IWindow *window)
 {
     // リソースのクリーンアップ
@@ -383,11 +579,30 @@ void ConfirmDialogRoutine::OnDestroy(IWindow *window)
     }
 }
 
+/**
+ * @brief ダイアログの定期的な更新処理
+ *
+ * フレームごとの更新処理を行います
+ *
+ * @param window 更新するウィンドウオブジェクト
+ * @param deltaTime 前回の更新からの経過時間（秒）
+ */
 void ConfirmDialogRoutine::OnUpdate(IWindow *window, float deltaTime)
 {
     // 定期的な更新処理が必要な場合はここに実装
 }
 
+/**
+ * @brief ダイアログのメッセージ処理
+ *
+ * OKボタンやキャンセルボタンなどのメッセージを処理します
+ *
+ * @param window ウィンドウオブジェクト
+ * @param msg メッセージID
+ * @param wParam 追加のメッセージ情報
+ * @param lParam 追加のメッセージ情報
+ * @return メッセージ処理結果
+ */
 LRESULT ConfirmDialogRoutine::OnMessage(IWindow *window, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -425,6 +640,13 @@ LRESULT ConfirmDialogRoutine::OnMessage(IWindow *window, UINT msg, WPARAM wParam
     return DefWindowProc(window->GetHandle(), msg, wParam, lParam);
 }
 
+/**
+ * @brief ツリービューコントロールの作成
+ *
+ * フィルター構造を表示するためのツリービューコントロールを作成します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void ConfirmDialogRoutine::CreateTreeView(HWND hwnd)
 {
     m_hTreeView = CreateWindowExW(
@@ -435,6 +657,13 @@ void ConfirmDialogRoutine::CreateTreeView(HWND hwnd)
     SendMessage(m_hTreeView, WM_SETFONT, (WPARAM)m_hFont, TRUE);
 }
 
+/**
+ * @brief ダイアログのボタン作成
+ *
+ * OKボタンとキャンセルボタンを作成します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void ConfirmDialogRoutine::CreateButtons(HWND hwnd)
 {
     // OKボタン
@@ -450,6 +679,13 @@ void ConfirmDialogRoutine::CreateButtons(HWND hwnd)
     SendMessage(hCancelButton, WM_SETFONT, (WPARAM)m_hFont, TRUE);
 }
 
+/**
+ * @brief ツリービューにフィルター構造を表示
+ *
+ * 再帰的にフィルター構造をツリービュー内に構築します
+ *
+ * @param hwnd 親ウィンドウのハンドル
+ */
 void ConfirmDialogRoutine::PopulateTreeView(HWND hwnd)
 {
     // ツリービューにアイテムを追加するヘルパー関数

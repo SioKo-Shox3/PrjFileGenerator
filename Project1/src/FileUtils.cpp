@@ -19,6 +19,13 @@
 
 namespace fs = std::filesystem;
 
+/**
+ * @brief 現在のユーザー名を取得する
+ *
+ * Windows APIを使用してシステムから現在ログインしているユーザー名を取得します
+ *
+ * @return 取得したユーザー名、失敗した場合は"Unknown"
+ */
 std::wstring FileUtils::GetCurrentUserName()
 {
     wchar_t username[UNLEN + 1];
@@ -33,27 +40,60 @@ std::wstring FileUtils::GetCurrentUserName()
 std::wstring FileUtils::GenerateGuid()
 {
     GUID guid;
-    HRESULT hr = CoCreateGuid(&guid);
+    std::wstring guidStr;
 
-    if (FAILED(hr))
+    try
     {
-        throw std::runtime_error("Failed to create GUID");
+        // GUIDを作成
+        HRESULT hr = CoCreateGuid(&guid);
+        if (FAILED(hr))
+        {
+            throw std::runtime_error("Failed to create GUID, HRESULT: " + std::to_string(hr));
+        }
+
+        // GUIDを文字列に変換
+        wchar_t guidString[39] = {0}; // 十分なサイズを確保
+        int result = StringFromGUID2(guid, guidString, sizeof(guidString) / sizeof(wchar_t));
+
+        if (result == 0)
+        {
+            throw std::runtime_error("Failed to convert GUID to string");
+        }
+
+        // StringFromGUID2はGUIDを{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}形式で返す
+        // 中括弧を除去
+        guidStr = std::wstring(guidString);
+        if (guidStr.length() >= 2)
+        {
+            guidStr = guidStr.substr(1, guidStr.length() - 2);
+        }
+        else
+        {
+            // 不正な形式の場合
+            throw std::runtime_error("Generated GUID string has invalid format");
+        }
+    }
+    catch (const std::exception &e)
+    {
+        // エラーのログ記録（必要に応じて）
+        OutputDebugStringA(("GenerateGuid error: " + std::string(e.what())).c_str());
+
+        // エラーを再スロー
+        throw;
     }
 
-    wchar_t guidString[39];
-    int result = StringFromGUID2(guid, guidString, sizeof(guidString) / sizeof(wchar_t));
-
-    if (result == 0)
-    {
-        throw std::runtime_error("Failed to convert GUID to string");
-    }
-
-    // StringFromGUID2 returns the GUID in the format {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
-    // We need to remove the curly braces for the .vcxproj.filters file format
-    std::wstring guidStr(guidString);
-    return guidStr.substr(1, guidStr.length() - 2);
+    return guidStr;
 }
 
+/**
+ * @brief プロジェクトディレクトリから.vcxprojファイルを検索し、プロジェクト名を抽出する
+ *
+ * ディレクトリ内の.vcxprojファイルからプロジェクト名を検索します。
+ * ProjectNameタグがあればその内容を、なければファイル名（拡張子なし）を返します。
+ *
+ * @param directory 検索対象のディレクトリパス
+ * @return プロジェクト名、見つからなかった場合は空文字列
+ */
 std::wstring FileUtils::FindProjectFile(const std::wstring &directory)
 {
     try
@@ -90,6 +130,16 @@ std::wstring FileUtils::FindProjectFile(const std::wstring &directory)
     return L""; // No project file found
 }
 
+/**
+ * @brief プロジェクトファイル(.vcxproj)を更新して新しいファイルを追加する
+ *
+ * 既存のプロジェクトファイルに存在しないファイルがあれば、それらを適切なItemGroupに追加します。
+ *
+ * @param projectDirectory プロジェクトディレクトリのパス
+ * @param projectName プロジェクト名
+ * @param files 追加するファイル情報のリスト
+ * @throw std::runtime_error プロジェクトファイルの読み取りや更新に失敗した場合
+ */
 void FileUtils::UpdateProjectFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
 {
     fs::path projectPath = fs::path(projectDirectory) / (projectName + L".vcxproj");
@@ -193,6 +243,17 @@ void FileUtils::UpdateProjectFile(const std::wstring &projectDirectory, const st
     }
 }
 
+/**
+ * @brief Visual Studio用のフィルターファイル(.vcxproj.filters)を生成する
+ *
+ * 指定されたファイル情報に基づいて、Visual Studioのソリューションエクスプローラで
+ * 使用されるフィルター構造を記述したXMLファイルを生成します。
+ *
+ * @param projectDirectory プロジェクトディレクトリのパス
+ * @param projectName プロジェクト名
+ * @param files フィルターに含めるファイル情報のリスト
+ * @throw std::runtime_error ファイルの作成や書き込みに失敗した場合
+ */
 void FileUtils::GenerateFiltersFile(const std::wstring &projectDirectory, const std::wstring &projectName, const std::vector<FileInfo> &files)
 {
     fs::path filtersPath = fs::path(projectDirectory) / (std::wstring(projectName) + L".vcxproj.filters");
@@ -316,6 +377,15 @@ void FileUtils::GenerateFiltersFile(const std::wstring &projectDirectory, const 
     }
 }
 
+/**
+ * @brief プロジェクトディレクトリ内のすべてのソースファイルとヘッダーファイルを収集する
+ *
+ * 指定されたディレクトリとそのサブディレクトリから、C/C++のソースファイル(.c, .cpp)と
+ * ヘッダーファイル(.h, .hpp)を検索し、それぞれのファイル情報を収集します。
+ *
+ * @param directory 検索対象のディレクトリパス
+ * @return 見つかったファイル情報のリスト
+ */
 std::vector<FileUtils::FileInfo> FileUtils::GetProjectFiles(const std::wstring &directory)
 {
     std::vector<FileInfo> files;
@@ -352,6 +422,15 @@ std::vector<FileUtils::FileInfo> FileUtils::GetProjectFiles(const std::wstring &
     return files;
 }
 
+/**
+ * @brief プロジェクトディレクトリからフィルター階層構造を構築する
+ *
+ * 指定されたディレクトリ内のファイル構造を解析し、ディレクトリとファイルの
+ * 階層構造を表すFilterNodeツリーを構築します。
+ *
+ * @param directory 解析対象のディレクトリパス
+ * @return 階層構造のルートノード
+ */
 FileUtils::FilterNode FileUtils::BuildFilterStructure(const std::wstring &directory)
 {
     FilterNode root;
@@ -394,6 +473,15 @@ FileUtils::FilterNode FileUtils::BuildFilterStructure(const std::wstring &direct
     return root;
 }
 
+/**
+ * @brief XML内で特殊文字をエスケープする
+ *
+ * XMLファイル内で使用される特殊文字(&, <, >, ", ', /)を
+ * 対応するエスケープシーケンスに変換します。
+ *
+ * @param input エスケープする文字列
+ * @return エスケープされた文字列
+ */
 std::wstring FileUtils::XmlEscape(const std::wstring &input)
 {
     std::wstring escaped;
@@ -427,6 +515,15 @@ std::wstring FileUtils::XmlEscape(const std::wstring &input)
     return escaped;
 }
 
+/**
+ * @brief ワイド文字列をUTF-8エンコードのマルチバイト文字列に変換する
+ *
+ * Windows APIを使用してワイド文字列をUTF-8エンコードの
+ * マルチバイト文字列に変換します。
+ *
+ * @param wstr 変換するワイド文字列
+ * @return UTF-8エンコードのマルチバイト文字列
+ */
 std::string FileUtils::WStringToUtf8(const std::wstring &wstr)
 {
     if (wstr.empty())
@@ -437,6 +534,16 @@ std::string FileUtils::WStringToUtf8(const std::wstring &wstr)
     return strTo;
 }
 
+/**
+ * @brief ワイド文字列をマルチバイト文字列に単純変換する
+ *
+ * std::string(wstr.begin(), wstr.end())を使用して
+ * ワイド文字列を直接マルチバイト文字列に変換します。
+ * 注意: この方法はロケール依存であり、非ASCII文字を正しく変換できない場合があります。
+ *
+ * @param wstr 変換するワイド文字列
+ * @return 変換されたマルチバイト文字列
+ */
 std::string FileUtils::Ws2s(const std::wstring &wstr)
 {
     std::string str(wstr.begin(), wstr.end());
