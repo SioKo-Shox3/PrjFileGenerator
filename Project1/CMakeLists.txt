@@ -53,6 +53,10 @@ message(STATUS "Verbose makefile enabled")
 set(SOURCES
     ${CMAKE_SOURCE_DIR}/src/WinMain.cpp
     ${CMAKE_SOURCE_DIR}/src/tinyxml2.cpp
+    ${CMAKE_SOURCE_DIR}/src/WindowRoutines.cpp
+    ${CMAKE_SOURCE_DIR}/src/FileUtils.cpp
+    ${CMAKE_SOURCE_DIR}/src/Win32WindowContext.cpp
+    ${CMAKE_SOURCE_DIR}/src/WinApplication.cpp
 )
 
 # 実行可能ファイルの生成
@@ -62,6 +66,7 @@ message(STATUS "Executable target 'Project1' created with sources: ${SOURCES}")
 # インクルードディレクトリの指定
 target_include_directories(Project1 PRIVATE 
     ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
     ${CMAKE_SOURCE_DIR}/resource
 )
 
