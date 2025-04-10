@@ -22,8 +22,8 @@
 //==============================================================================
 // プロジェクト固有ヘッダー
 //==============================================================================
-#include "../include/WinApplication.h"
-#include "../include/Win32WindowContext.h"
+#include "WinApplication.h"
+#include "Win32WindowContext.h"
 
 //==============================================================================
 // プラグマディレクティブ
@@ -48,7 +48,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     try
     {
         // アプリケーションインスタンスを作成
-        auto app = std::make_shared<WinApplication>();
+        std::shared_ptr<WinApplication> app = std::make_shared<WinApplication>();
 
         // アプリケーションを初期化
         if (!app->Initialize(hInstance, L"VS Filter Generator", 400, 250, nCmdShow))

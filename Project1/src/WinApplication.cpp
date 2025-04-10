@@ -1,7 +1,7 @@
-#include "../include/WinApplication.h"
-#include "../include/Win32WindowContext.h"
-#include "../include/WindowRoutines.h"
-#include "../include/TWindow.h"
+#include "WinApplication.h"
+#include "Win32WindowContext.h"
+#include "WindowRoutines.h"
+#include "TWindow.h"
 #include <chrono>
 #include <thread>
 #include <clocale> // setlocale、LC_ALLのために必要
@@ -63,10 +63,10 @@ bool WinApplication::Initialize(HINSTANCE hInstance, const std::wstring &windowT
     }
 
     // メインウィンドウのルーチンを作成
-    auto mainWindowRoutine = std::make_shared<MainWindowRoutine>();
+    std::shared_ptr<MainWindowRoutine> mainWindowRoutine = std::make_shared<MainWindowRoutine>();
 
     // メインウィンドウを作成
-    auto mainWindow = std::make_shared<TWindow<MainWindowRoutine>>(mainWindowRoutine, m_windowContext);
+    std::shared_ptr<TWindow<MainWindowRoutine>> mainWindow = std::make_shared<TWindow<MainWindowRoutine>>(mainWindowRoutine, m_windowContext);
 
     // アプリケーションにウィンドウを登録
     RegisterWindow(mainWindow);
@@ -85,7 +85,7 @@ int WinApplication::Run()
     m_bIsRunning = true;
 
     // 前回の更新時間を記録
-    auto lastUpdateTime = std::chrono::high_resolution_clock::now();
+    std::chrono::high_resolution_clock::time_point lastUpdateTime = std::chrono::high_resolution_clock::now();
 
     // メインウィンドウが作成されていない場合
     if (!m_mainWindow || !m_mainWindow->GetHandle())
@@ -116,7 +116,7 @@ int WinApplication::Run()
         else
         {
             // デルタタイム計算（秒単位）
-            auto currentTime = std::chrono::high_resolution_clock::now();
+            std::chrono::high_resolution_clock::time_point currentTime = std::chrono::high_resolution_clock::now();
             float deltaTime = std::chrono::duration<float>(currentTime - lastUpdateTime).count();
             lastUpdateTime = currentTime;
 
@@ -139,7 +139,7 @@ void WinApplication::Shutdown()
     m_bIsRunning = false;
 
     // ウィンドウをすべて削除
-    for (auto window : m_windows)
+    for (std::shared_ptr<IWindow> window : m_windows)
     {
         if (window)
         {

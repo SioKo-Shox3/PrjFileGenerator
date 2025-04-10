@@ -1,4 +1,4 @@
-#include "../include/Win32WindowContext.h"
+#include "Win32WindowContext.h"
 
 Win32WindowContext::Win32WindowContext(HINSTANCE hInstance)
     : m_hInstance(hInstance)

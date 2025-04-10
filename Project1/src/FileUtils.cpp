@@ -1,4 +1,4 @@
-#include "../include/FileUtils.h"
+#include "FileUtils.h"
 #include "tinyxml2.h"
 
 #include <windows.h>

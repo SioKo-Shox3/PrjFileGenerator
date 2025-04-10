@@ -1,6 +1,6 @@
-#include "../include/WindowRoutines.h"
-#include "../include/FileUtils.h"
-#include "../resource/resource.h"
+#include "WindowRoutines.h"
+#include "FileUtils.h"
+#include "resource.h"
 
 #include <windows.h>
 #include <lmcons.h>
@@ -188,11 +188,11 @@ void MainWindowRoutine::OnGenerateButtonClick(HWND hwnd)
     FileUtils::FilterNode root = FileUtils::BuildFilterStructure(directoryPath);
 
     // 確認ダイアログを表示
-    auto onConfirm = [this, hwnd, directoryPath, projectName]()
+    std::function<void()> onConfirm = [this, hwnd, directoryPath, projectName]()
     {
         try
         {
-            auto files = FileUtils::GetProjectFiles(directoryPath);
+            std::vector<FileUtils::FileInfo> files = FileUtils::GetProjectFiles(directoryPath);
             FileUtils::GenerateFiltersFile(directoryPath, projectName, files);
             FileUtils::UpdateProjectFile(directoryPath, projectName, files);
             SetWindowTextW(m_hWndStatusText, L"Filters generated and project file updated successfully.");
@@ -208,7 +208,7 @@ void MainWindowRoutine::OnGenerateButtonClick(HWND hwnd)
         }
     };
 
-    auto onCancel = [this]()
+    std::function<void()> onCancel = [this]()
     {
         SetWindowTextW(m_hWndStatusText, L"Filter generation cancelled.");
     };
@@ -453,7 +453,8 @@ void ConfirmDialogRoutine::CreateButtons(HWND hwnd)
 void ConfirmDialogRoutine::PopulateTreeView(HWND hwnd)
 {
     // ツリービューにアイテムを追加するヘルパー関数
-    auto addItemToTree = [this](HTREEITEM hParent, const std::wstring &text) -> HTREEITEM
+    std::function<HTREEITEM(HTREEITEM, const std::wstring &)> addItemToTree =
+        [this](HTREEITEM hParent, const std::wstring &text) -> HTREEITEM
     {
         TVINSERTSTRUCT tvInsert = {0};
         tvInsert.hParent = hParent;
@@ -468,7 +469,7 @@ void ConfirmDialogRoutine::PopulateTreeView(HWND hwnd)
         [&](HTREEITEM hParent, const FileUtils::FilterNode &node)
     {
         HTREEITEM hItem = addItemToTree(hParent, node.m_name.c_str());
-        for (const auto &child : node.m_children)
+        for (const FileUtils::FilterNode &child : node.m_children)
         {
             if (child.m_bIsFile)
             {
