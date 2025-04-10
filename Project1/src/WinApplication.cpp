@@ -7,6 +7,12 @@
 #include <clocale> // setlocale、LC_ALLのために必要
 #include <locale>  // std::locale のために必要
 
+/**
+ * @brief デフォルトコンストラクタ
+ *
+ * 現在のモジュールのインスタンスハンドルを取得し、
+ * COMを初期化し、日本語サポートを設定します。
+ */
 WinApplication::WinApplication()
     : m_hInstance(GetModuleHandle(NULL)), m_nCmdShow(SW_SHOWDEFAULT), m_bIsRunning(false)
 {
@@ -21,6 +27,12 @@ WinApplication::WinApplication()
     m_windowContext = std::make_shared<Win32WindowContext>(m_hInstance);
 }
 
+/**
+ * @brief 指定されたインスタンスハンドルと表示コマンドを使用してアプリケーションを初期化
+ *
+ * @param hInstance アプリケーションインスタンスハンドル
+ * @param nCmdShow ウィンドウ表示コマンド
+ */
 WinApplication::WinApplication(HINSTANCE hInstance, int nCmdShow)
     : m_hInstance(hInstance), m_nCmdShow(nCmdShow), m_bIsRunning(false)
 {
@@ -35,6 +47,11 @@ WinApplication::WinApplication(HINSTANCE hInstance, int nCmdShow)
     m_windowContext = std::make_shared<Win32WindowContext>(hInstance);
 }
 
+/**
+ * @brief デストラクタ
+ *
+ * アプリケーションのシャットダウンを実行し、COMを終了します
+ */
 WinApplication::~WinApplication()
 {
     Shutdown();
@@ -43,6 +60,12 @@ WinApplication::~WinApplication()
     CoUninitialize();
 }
 
+/**
+ * @brief コマンドライン引数でアプリケーションを初期化
+ *
+ * @param args コマンドライン引数のリスト
+ * @return 初期化が成功した場合はtrue
+ */
 bool WinApplication::Initialize(const std::vector<std::wstring> &args)
 {
     // コマンドライン引数の処理（必要であれば）
@@ -50,6 +73,16 @@ bool WinApplication::Initialize(const std::vector<std::wstring> &args)
     return true;
 }
 
+/**
+ * @brief ウィンドウパラメータでアプリケーションを初期化
+ *
+ * @param hInstance アプリケーションインスタンスハンドル
+ * @param windowTitle メインウィンドウのタイトル
+ * @param width ウィンドウの幅
+ * @param height ウィンドウの高さ
+ * @param nCmdShow ウィンドウ表示モード
+ * @return 初期化が成功した場合はtrue
+ */
 bool WinApplication::Initialize(HINSTANCE hInstance, const std::wstring &windowTitle, int width, int height, int nCmdShow)
 {
     // インスタンスハンドルと表示モードを設定
@@ -80,6 +113,13 @@ bool WinApplication::Initialize(HINSTANCE hInstance, const std::wstring &windowT
     return true;
 }
 
+/**
+ * @brief アプリケーションのメインループを実行
+ *
+ * ウィンドウメッセージの処理とアプリケーションの更新を行います
+ *
+ * @return 終了コード
+ */
 int WinApplication::Run()
 {
     m_bIsRunning = true;
@@ -134,6 +174,9 @@ int WinApplication::Run()
     return (int)msg.wParam;
 }
 
+/**
+ * @brief アプリケーションを終了し、すべてのウィンドウを破棄
+ */
 void WinApplication::Shutdown()
 {
     m_bIsRunning = false;
@@ -151,11 +194,21 @@ void WinApplication::Shutdown()
     m_mainWindow.reset();
 }
 
+/**
+ * @brief メインウィンドウを取得
+ *
+ * @return メインウィンドウへのポインタ
+ */
 IWindow *WinApplication::GetMainWindow()
 {
     return m_mainWindow.get();
 }
 
+/**
+ * @brief アプリケーションにウィンドウを登録
+ *
+ * @param window 登録するウィンドウ
+ */
 void WinApplication::RegisterWindow(std::shared_ptr<IWindow> window)
 {
     if (window)
@@ -171,6 +224,11 @@ void WinApplication::RegisterWindow(std::shared_ptr<IWindow> window)
     }
 }
 
+/**
+ * @brief ウィンドウの登録を解除
+ *
+ * @param window 解除するウィンドウ
+ */
 void WinApplication::UnregisterWindow(std::shared_ptr<IWindow> window)
 {
     if (window)
@@ -191,11 +249,21 @@ void WinApplication::UnregisterWindow(std::shared_ptr<IWindow> window)
     }
 }
 
+/**
+ * @brief インスタンスハンドルを取得
+ *
+ * @return アプリケーションのインスタンスハンドル
+ */
 HINSTANCE WinApplication::GetInstance() const
 {
     return m_hInstance;
 }
 
+/**
+ * @brief 表示コマンドを取得
+ *
+ * @return ウィンドウ表示コマンド
+ */
 int WinApplication::GetCmdShow() const
 {
     return m_nCmdShow;
